@@ -1,0 +1,16 @@
+#!name=多邻国 v13.1（连胜/宝石不动）
+#!desc=模拟 Super/Max 会员（去课后广告/解锁入口）+ 能量/时间宝拉满；连胜天数与宝石保持原样
+#!author=Minis
+#!tag=教育,多邻国
+#!date=2026-09-13
+#!version=13.1
+
+[Script]
+http-response ^https?:\/\/ios-api-2\.duolingo\.cn script-path=https://raw.githubusercontent.com/x1nghao/loon-duolingo/main/duolingo_gems.js, requires-body=true, timeout=10, max-size=600000, tag=多邻国 响应拦截
+
+http-response ^https?:\/\/duolingo-achievements-prod\.duolingo\.cn script-path=https://raw.githubusercontent.com/x1nghao/loon-duolingo/main/duolingo_gems.js, requires-body=true, timeout=10, max-size=200000, tag=多邻国 成就域响应
+
+http-response ^https?:\/\/api2\.duolingo\.cn script-path=https://raw.githubusercontent.com/x1nghao/loon-duolingo/main/duolingo_gems.js, requires-body=true, timeout=10, max-size=600000, tag=多邻国 api2 响应拦截
+
+[Mitm]
+hostname = ios-api-2.duolingo.cn, duolingo-achievements-prod.duolingo.cn, api2.duolingo.cn
