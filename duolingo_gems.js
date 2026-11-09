@@ -1,11 +1,14 @@
 // ==Plugin==
 // @name        多邻国 v13（连胜/宝石不动版）
-// @desc        连胜天数与宝石保持原样；能量/时间宝/红心/安全盾/全成就/Super/Max入口 按原脚本修改
-// @version     13.1
+// @desc        连胜天数与宝石保持原样；能量/时间宝/红心/安全盾/全成就/Super/Max入口 按原脚本修改；数值可在插件页参数调整
+// @version     13.2
 // @author      Minis
 // ==/Plugin==
 
-const TB = 999, FZ = 999, MAX_ENERGY = 9999;
+// 数值优先读 Loon 插件页 [Argument]（$argument），未配置时用默认值
+const ARGS = (typeof $argument === 'object' && $argument) || {};
+const numArg = (v, dft) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : dft; };
+const TB = numArg(ARGS.TB, 999), FZ = numArg(ARGS.FZ, 999), MAX_ENERGY = numArg(ARGS.MAX_ENERGY, 9999);
 
 const MAX_FEATURES = ['NO_NETWORK_ADS','UNLIMITED_HEARTS','LEGENDARY_LEVEL','MISTAKES_INBOX',
   'MASTERY_QUIZ','EXPLAIN_MY_ANSWER','LICENSED_SONGS','CAN_ADD_SECONDARY_MEMBERS',
@@ -26,6 +29,8 @@ function modUser(d) {
   if (d.subscriberLevel && d.subscriberLevel !== 'PREMIUM') { d.subscriberLevel = 'PREMIUM'; m = true; }
   // 国际版用户模型用 hasPlus 判断 Super/Max 权益，存在就置 true（CN 可能两个都查）
   if (typeof d.hasPlus === 'boolean' && !d.hasPlus) { d.hasPlus = true; m = true; }
+  // 国际版订阅聚合状态，字段存在才写（避免凭空造字段）
+  if (typeof d.superAggregatedState === 'string' && d.superAggregatedState !== 'IS_SUPER') { d.superAggregatedState = 'IS_SUPER'; m = true; }
 
   if (d.health) { d.health.unlimitedHeartsAvailable = true; m = true; }
   if (d.energyConfig) { d.energyConfig.maxEnergy = MAX_ENERGY; d.energyConfig.energy = MAX_ENERGY; m = true; }
@@ -64,25 +69,28 @@ function modConfig(d) {
   ff.ios_fetch_subscription_features = true;
   if (!Array.isArray(d.subscriptionFeatures)) d.subscriptionFeatures = [];
   pushFeatures(d.subscriptionFeatures);
-  if (d.xpBoostMultiplier === undefined) d.xpBoostMultiplier = 5; else d.xpBoostMultiplier = 5;
+  d.xpBoostMultiplier = 5;
   return true;
 }
 
 // ===== 单一已解析对象处理入口（顶层或 batch 嵌套体）=====
-// 返回新字符串或 null(未改)
+// 各类修改依次执行（互不排斥），有任何改动才返回新字符串，否则 null
 function handleParsed(d, url) {
   if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
   if (Array.isArray(d.experiments) && d.experiments.length && d.experiments[0] && typeof d.experiments[0].name === 'string') return null;
+
+  let m = false;
 
   // —— 安全盾：有效期拉到 2099（不动连胜天数本身）——
   if (d.streakShields || (url && url.includes('streak-shield'))) {
     d.streakShields = d.streakShields || [];
     if (d.streakShields.length === 0) {
-      d.streakShields.push({userId:'716692732', startDate:{year:2026, month:1, day:1}, endDate:{year:2099, month:12, day:31}});
+      // 不写死 userId：响应对应的是当前登录用户，归属交给客户端
+      d.streakShields.push({startDate:{year:2026, month:1, day:1}, endDate:{year:2099, month:12, day:31}});
     } else {
       d.streakShields.forEach(s => { s.endDate = {year:2099, month:12, day:31}; s.startDate = {year:2026, month:1, day:1}; });
     }
-    return JSON.stringify(d);
+    m = true;
   }
 
   if (d.achievements && Array.isArray(d.achievements)) {
@@ -92,17 +100,16 @@ function handleParsed(d, url) {
       for (let t = 0; t < (a.tierCounts ? a.tierCounts.length : 10); t++) ts.push(now - (10-t) * 86400000);
       a.unlockTimestamps = ts;
     });
-    return JSON.stringify(d);
+    m = true;
   }
 
   // —— config ——
-  if (d.featureFlags && typeof d.featureFlags === 'object') {
-    if (modConfig(d)) return JSON.stringify(d);
-  }
+  if (d.featureFlags && typeof d.featureFlags === 'object' && modConfig(d)) m = true;
 
   // —— 通用用户模型 ——
-  if (modUser(d)) return JSON.stringify(d);
-  return null;
+  if (modUser(d)) m = true;
+
+  return m ? JSON.stringify(d) : null;
 }
 
 function modBatch(b) {
@@ -119,7 +126,7 @@ function modBatch(b) {
       if (out) { r.body = out; changed = true; }
     }
     return changed ? JSON.stringify(o) : b;
-  } catch(e) { return b; }
+  } catch(e) { console.log('duolingo-gems batch: ' + e); return b; }
 }
 
 function standalone(url, b) {
@@ -128,7 +135,7 @@ function standalone(url, b) {
     if (typeof d !== 'object' || d === null) return b;
     const out = handleParsed(d, url);
     return out ? out : b;
-  } catch(e) { return b; }
+  } catch(e) { console.log('duolingo-gems standalone: ' + e); return b; }
 }
 
 const isReq = typeof $response === 'undefined' || $response === null;
@@ -139,7 +146,9 @@ try {
     const url = ($request && $request.url) || '';
     const body = $response.body || '';
     if (!body) { $done({}); return; }
-    if (url.includes('/batch')) { $done({ body: modBatch(body) }); }
-    else { $done({ body: standalone(url, body) }); }
+    if (url.includes('/batch')) { $done({ body: modBatch(body) }); return; }
+    // batch 聚合接口本身是 POST，单独放行；其余只改读操作响应（与同类脚本一致）
+    if ((($request && $request.method) || 'GET').toUpperCase() !== 'GET') { $done({}); return; }
+    $done({ body: standalone(url, body) });
   }
-} catch(e) { $done({}); }
+} catch(e) { console.log('duolingo-gems: ' + e); $done({}); }

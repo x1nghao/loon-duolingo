@@ -1,9 +1,14 @@
-#!name=多邻国 v13.1（连胜/宝石不动）
-#!desc=模拟 Super/Max 会员（去课后广告/解锁入口）+ 能量/时间宝拉满；连胜天数与宝石保持原样
+#!name=多邻国 v13.2（连胜/宝石不动）
+#!desc=模拟 Super/Max 会员（去课后广告/解锁入口）+ 能量/时间宝拉满；连胜天数与宝石保持原样；数值可在插件页参数调整
 #!author=Minis
 #!tag=教育,多邻国
-#!date=2026-09-13
-#!version=13.1
+#!date=2026-11-10
+#!version=13.2
+
+[Argument]
+MAX_ENERGY = input,"9999",type=number,tag=能量上限,desc=能量上限与当前数值
+TB = input,"999",type=number,tag=时间宝数量,desc=时间宝道具数量
+FZ = input,"999",type=number,tag=连胜冻结数量,desc=连胜冻结道具数量
 
 [Script]
 http-response ^https?:\/\/ios-api-2\.duolingo\.cn script-path=https://raw.githubusercontent.com/x1nghao/loon-duolingo/main/duolingo_gems.js, requires-body=true, timeout=10, max-size=600000, tag=多邻国 响应拦截
